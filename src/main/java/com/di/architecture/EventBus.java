@@ -15,7 +15,9 @@ public class EventBus {
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
 
     public void register(Object bean, Method... eventListeners) {
-        invokers.add(new EventListenerInvoker(bean, eventListeners));
+        if (eventListeners.length > 0) {
+            invokers.add(new EventListenerInvoker(bean, eventListeners));
+        }
     }
 
     public void publish(Event event) {

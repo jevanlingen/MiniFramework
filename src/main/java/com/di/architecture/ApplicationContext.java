@@ -11,15 +11,22 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 
-public class SetupConfigurer {
-    public static void configure() {
+public class ApplicationContext {
+    private Map<Class<?>, Object> beans = null;
+
+    public void setup() {
         try {
-            final var initializedBeans = initializeClasses();
-            initializeEventBus(initializedBeans);
-            initializeAndRunServer(initializedBeans);
+            beans = initializeClasses();
+            initializeEventBus();
+            initializeServer();
         } catch (InvocationTargetException | IllegalAccessException | InstantiationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getBean(Class<T> clazz) {
+        return (T) beans.get(clazz);
     }
 
     private static Map<Class<?>, Object> initializeClasses() throws InvocationTargetException, InstantiationException, IllegalAccessException {
@@ -45,34 +52,30 @@ public class SetupConfigurer {
         return initializedClasses;
     }
 
-    private static void initializeEventBus(Map<Class<?>, Object> initializedBeans) {
-        final var eventBus = (EventBus) initializedBeans.get(EventBus.class);
+    private void initializeEventBus() {
+        final var eventBus = getBean(EventBus.class);
         if (eventBus != null) {
-            for (Object bean : initializedBeans.values()) {
+            beans.values().forEach(bean -> {
                 final var eventListeners = Arrays.stream(bean.getClass().getDeclaredMethods())
                         .filter(method -> method.isAnnotationPresent(EventListener.class))
                         .toArray(Method[]::new);
-
-                if (eventListeners.length > 0) {
-                    eventBus.register(bean, eventListeners);
-                }
-            }
+                eventBus.register(bean, eventListeners);
+            });
         }
     }
 
-    private static void initializeAndRunServer(Map<Class<?>, Object> initializedBeans) {
-        var server = (Server) initializedBeans.get(Server.class);
-
-        for (Object bean : initializedBeans.values()) {
-            if (bean.getClass().isAnnotationPresent(RestController.class)) {
-                final var methods = Arrays.stream(bean.getClass().getDeclaredMethods())
-                        .filter(method -> method.isAnnotationPresent(GET.class) || method.isAnnotationPresent(POST.class))
-                        .toArray(Method[]::new);
-                server.registerRoute(bean, methods);
-            }
+    private void initializeServer() {
+        var server = getBean(Server.class);
+        if (server != null) {
+            beans.values().stream()
+                    .filter(bean -> bean.getClass().isAnnotationPresent(RestController.class))
+                    .forEach(bean -> {
+                        final var methods = Arrays.stream(bean.getClass().getDeclaredMethods())
+                                .filter(method -> method.isAnnotationPresent(GET.class) || method.isAnnotationPresent(POST.class))
+                                .toArray(Method[]::new);
+                        server.registerRoute(bean, methods);
+                    });
         }
-
-        server.run();
     }
 
     private static Set<Class<?>> getSuitableClasses() {

@@ -41,14 +41,15 @@ Example flow:
 3. `AuditService` prints: `[Timestamp] READ: Getting all users`.
 
 ## How it Works
-The application follows a streamlined startup sequence in `SetupConfigurer`:
+sThe application follows a streamlined startup sequence orchestrated by `ApplicationContext`:
 
 1. **Bean Discovery & Initialization**: Scans for annotated classes and builds the dependency graph. Beans are instantiated in order of their dependencies.
-2. **Event Bus Wiring**: Scans initialized beans for `@EventListener` methods and registers them with the `EventBus`.
-3. **HTTP Server Bootstrapping**: Identifies `@RestController` beans, maps their `@GET` and `@POST` methods to routes, and starts the server on port 8080.
+2. **Event Bus Wiring**: Scans initialized beans for `@EventListener` methods and registers them with the `EventBus`. Beans with no listener methods are skipped.
+3. **HTTP Server Bootstrapping**: Identifies `@RestController` beans, maps their `@GET` and `@POST` methods to routes, and registers them with the `Server`.
+4. **Server Start**: After setup, the `Server` bean is retrieved via `appContext.getBean(Server.class)` and started explicitly.
 
 ## Running the Application
-To start the framework, run the `main` method in `com.di.Startup`. This will initialize the DI container, wire the event system, and start the HTTP server. You can then interact with the API using the provided `src/main/resources/example.http` file or any HTTP client.
+To start the framework, run the `main` method in `com.di.Startup`. This creates an `ApplicationContext`, calls `setup()` to initialize the DI container and wire the event system, then retrieves and starts the HTTP server via `appContext.getBean(Server.class).run()`. You can then interact with the API using the provided `src/main/resources/example.http` file or any HTTP client.
 
 ---
 
