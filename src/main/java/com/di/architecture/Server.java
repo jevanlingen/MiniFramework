@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.jspecify.annotations.Nullable;
 
 @Configuration
 public class Server {
@@ -100,7 +101,7 @@ public class Server {
         }
     }
 
-    private MatchedRoute findRoute(final String httpMethod, final String rawPath) {
+    private @Nullable MatchedRoute findRoute(final String httpMethod, final String rawPath) {
         final var pathParts = rawPath.split("\\?", 2);
         final var path = pathParts[0];
         final var queryParams = pathParts.length < 2 ? Map.<String, String>of() :

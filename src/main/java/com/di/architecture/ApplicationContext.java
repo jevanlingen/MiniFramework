@@ -4,6 +4,7 @@ import com.di.annotations.*;
 import com.di.annotations.EventListener;
 import com.di.annotations.http.GET;
 import com.di.annotations.http.POST;
+import org.jspecify.annotations.Nullable;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 
@@ -12,7 +13,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 
 public class ApplicationContext {
-    private Map<Class<?>, Object> beans = null;
+    private Map<Class<?>, Object> beans = Map.of();
 
     public void setup() {
         try {
@@ -25,7 +26,7 @@ public class ApplicationContext {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T getBean(Class<T> clazz) {
+    public <T> @Nullable T getBean(Class<T> clazz) {
         return (T) beans.get(clazz);
     }
 

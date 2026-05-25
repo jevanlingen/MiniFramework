@@ -1,3 +1,5 @@
 package com.di.model;
 
-public record User(Integer id, String name) {}
+import org.jspecify.annotations.Nullable;
+
+public record User(@Nullable Integer id, String name) {}
