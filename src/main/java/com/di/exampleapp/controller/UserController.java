@@ -3,6 +3,8 @@ package com.di.exampleapp.controller;
 import com.di.annotations.RestController;
 import com.di.annotations.http.GET;
 import com.di.annotations.http.POST;
+import com.di.annotations.http.PathVariable;
+import com.di.annotations.http.RequestParam;
 import com.di.architecture.EventBus;
 import com.di.exampleapp.service.AuthenticationService;
 import com.di.exampleapp.service.UserService;
@@ -26,13 +28,13 @@ public class UserController {
     }
 
     @GET("/user")
-    public List<User> getUsers() {
-        eventBus.publish(new Read("Getting all users"));
-        return userService.getAll();
+    public List<User> getUsers(@RequestParam("search") String searchTerm) {
+        eventBus.publish(new Read("Getting users with term: " + searchTerm));
+        return userService.search(searchTerm);
     }
 
     @GET("/user/{id}")
-    public User getUser(int id) {
+    public User getUser(@PathVariable("id") int id) {
         eventBus.publish(new Read("Getting user with id: " + id));
         return userService.getUser(id);
     }

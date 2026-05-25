@@ -8,3 +8,9 @@ GET http://localhost:8080/user/1
 
 ###
 POST  http://localhost:8080/user
+
+###
+GET http://localhost:8080/user?non=Existent&search=Jacob
+
+###
+GET http://localhost:8080/user?search=nonexistent

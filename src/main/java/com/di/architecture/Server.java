@@ -3,6 +3,8 @@ package com.di.architecture;
 import com.di.annotations.Configuration;
 import com.di.annotations.http.GET;
 import com.di.annotations.http.POST;
+import com.di.annotations.http.PathVariable;
+import com.di.annotations.http.RequestParam;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,32 +13,31 @@ import java.lang.reflect.Method;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Configuration
 public class Server {
-    private static int PORT_NUMBER = 8080;
-
+    private static final int PORT_NUMBER = 8080;
     private final List<Route> routes = new ArrayList<>();
 
-    public void registerRoute(Object bean, Method... methods) {
-        for (var method : methods) {
-            String httpMethod = null;
-            String path = null;
+    public void registerRoute(final Object bean, final Method... methods) {
+        Arrays.stream(methods).forEach(method -> {
             if (method.isAnnotationPresent(GET.class)) {
-                httpMethod = "GET";
-                path = method.getAnnotation(GET.class).value();
+                final var path = method.getAnnotation(GET.class).value();
+                routes.add(new Route("GET", path, bean, method));
+                System.out.println("Registered route: GET " + path);
             } else if (method.isAnnotationPresent(POST.class)) {
-                httpMethod = "POST";
-                path = method.getAnnotation(POST.class).value();
+                final var path = method.getAnnotation(POST.class).value();
+                routes.add(new Route("POST", path, bean, method));
+                System.out.println("Registered route: POST " + path);
             }
-
-            if (httpMethod != null) {
-                routes.add(new Route(httpMethod, path, bean, method));
-                System.out.println("Registered route: " + httpMethod + " " + path);
-            }
-        }
+        });
     }
 
     public void run() {
@@ -54,19 +55,19 @@ public class Server {
                     System.out.println("Request: " + line);
                     final var requestParts = line.split(" ");
                     final var httpMethod = requestParts[0];
-                    final var path = requestParts[1];
+                    final var rawPath = requestParts[1];
 
                     while (!(line = in.readLine()).isEmpty()) { }
 
-                    String body;
                     var statusCode = 200;
                     var statusText = "OK";
+                    String body;
 
-                    MatchedRoute matched = findRoute(httpMethod, path);
+                    final var matched = findRoute(httpMethod, rawPath);
 
                     if (matched != null) {
                         try {
-                            final var args = convertArgs(matched.route().method(), matched.params());
+                            final var args = convertArgs(matched.route().method(), matched.pathParams(), matched.queryParams());
                             final var result = matched.route().method().invoke(matched.route().bean(), args);
                             body = result != null ? result.toString() : "";
                         } catch (Exception e) {
@@ -99,44 +100,59 @@ public class Server {
         }
     }
 
-    private MatchedRoute findRoute(String httpMethod, String path) {
+    private MatchedRoute findRoute(final String httpMethod, final String rawPath) {
+        final var pathParts = rawPath.split("\\?", 2);
+        final var path = pathParts[0];
+        final var queryParams = pathParts.length < 2 ? Map.<String, String>of() :
+            Arrays.stream(pathParts[1].split("&"))
+                .map(pair -> pair.split("=", 2))
+                .collect(Collectors.toMap(
+                    parts -> parts[0],
+                    parts -> parts.length > 1 ? parts[1] : "",
+                    (v1, _) -> v1
+                ));
+
         final var pathSegments = path.split("/");
-        for (Route route : routes) {
-            if (!route.httpMethod().equals(httpMethod)) continue;
-            
-            final var routeSegments = route.path().split("/");
-            if (pathSegments.length != routeSegments.length) continue;
-
-            final var params = new ArrayList<String>();
-            var match = true;
-            for (int i = 0; i < routeSegments.length; i++) {
-                if (routeSegments[i].startsWith("{") && routeSegments[i].endsWith("}")) {
-                    params.add(pathSegments[i]);
-                } else if (!routeSegments[i].equals(pathSegments[i])) {
-                    match = false;
-                    break;
-                }
-            }
-
-            if (match) {
-                return new MatchedRoute(route, params);
-            }
-        }
-        return null;
+        return routes.stream()
+                .filter(route -> route.httpMethod().equals(httpMethod))
+                .map(route -> {
+                    final var routeSegments = route.path().split("/");
+                    if (pathSegments.length != routeSegments.length) {
+                        return null;
+                    }
+                    final var pathParams = new HashMap<String, String>();
+                    final var matches = IntStream.range(0, routeSegments.length)
+                            .allMatch(i -> {
+                                if (routeSegments[i].startsWith("{") && routeSegments[i].endsWith("}")) {
+                                    final var key = routeSegments[i].substring(1, routeSegments[i].length() - 1);
+                                    pathParams.put(key, pathSegments[i]);
+                                    return true;
+                                }
+                                return routeSegments[i].equals(pathSegments[i]);
+                            });
+                    return matches ? new MatchedRoute(route, pathParams, queryParams) : null;
+                })
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
-    private Object[] convertArgs(Method method, List<String> params) {
-        final var paramTypes = method.getParameterTypes();
-        return IntStream.range(0, paramTypes.length)
-                .mapToObj(i -> {
-                    if (paramTypes[i] == int.class || paramTypes[i] == Integer.class) {
-                        return Integer.parseInt(params.get(i));
+    private Object[] convertArgs(final Method method, final Map<String, String> pathParams, final Map<String, String> queryParams) {
+        return Arrays.stream(method.getParameters())
+                .map(parameter -> {
+                    final var val = parameter.isAnnotationPresent(PathVariable.class)
+                            ? pathParams.get(parameter.getAnnotation(PathVariable.class).value())
+                            : parameter.isAnnotationPresent(RequestParam.class)
+                            ? queryParams.get(parameter.getAnnotation(RequestParam.class).value())
+                            : null;
+                    if (parameter.getType() == int.class || parameter.getType() == Integer.class) {
+                        return val != null ? Integer.parseInt(val) : 0;
                     }
-                    return params.get(i);
+                    return val;
                 })
                 .toArray();
     }
 
     private record Route(String httpMethod, String path, Object bean, Method method) {}
-    private record MatchedRoute(Route route, List<String> params) {}
+    private record MatchedRoute(Route route, Map<String, String> pathParams, Map<String, String> queryParams) {}
 }

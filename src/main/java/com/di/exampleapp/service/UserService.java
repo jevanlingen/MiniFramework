@@ -19,8 +19,16 @@ public class UserService {
         this.eventBus = eventBus;
     }
 
-    public List<User> getAll() {
-        return userRepository.findAll();
+    public List<User> search(String term) {
+        var users = userRepository.findAll();
+
+        if (term == null) {
+            return users;
+        }
+
+        return users.stream()
+                .filter(user -> user.name().toLowerCase().contains(term.toLowerCase()))
+                .toList();
     }
 
     public User getUser(int id) {
