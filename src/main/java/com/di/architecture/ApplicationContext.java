@@ -83,7 +83,6 @@ public class ApplicationContext {
         final var reflections = new Reflections("com.di", Scanners.TypesAnnotated);
 
         final var classes = reflections.getTypesAnnotatedWith(Bean.class);
-        classes.addAll(reflections.getTypesAnnotatedWith(Bean.class));
         classes.addAll(reflections.getTypesAnnotatedWith(Configuration.class));
         classes.addAll(reflections.getTypesAnnotatedWith(Repository.class));
         classes.addAll(reflections.getTypesAnnotatedWith(RestController.class));
