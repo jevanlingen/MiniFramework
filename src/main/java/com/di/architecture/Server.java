@@ -138,7 +138,7 @@ public class Server {
                 .orElse(null);
     }
 
-    private Object[] convertArgs(final Method method, final Map<String, String> pathParams, final Map<String, String> queryParams) {
+    private @Nullable Object[] convertArgs(final Method method, final Map<String, String> pathParams, final Map<String, String> queryParams) {
         return Arrays.stream(method.getParameters())
                 .map(parameter -> {
                     final var val = parameter.isAnnotationPresent(PathVariable.class)
