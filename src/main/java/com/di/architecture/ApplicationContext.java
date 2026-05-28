@@ -8,6 +8,7 @@ import org.jspecify.annotations.Nullable;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -56,12 +57,8 @@ public class ApplicationContext {
     private void initializeEventBus() {
         final var eventBus = getBean(EventBus.class);
         if (eventBus != null) {
-            beans.values().forEach(bean -> {
-                final var eventListeners = Arrays.stream(bean.getClass().getDeclaredMethods())
-                        .filter(method -> method.isAnnotationPresent(EventListener.class))
-                        .toArray(Method[]::new);
-                eventBus.register(bean, eventListeners);
-            });
+            beans.values()
+                    .forEach(bean -> eventBus.register(bean, findMethodsAnnotatedWith(bean, EventListener.class)));
         }
     }
 
@@ -70,12 +67,7 @@ public class ApplicationContext {
         if (server != null) {
             beans.values().stream()
                     .filter(bean -> bean.getClass().isAnnotationPresent(RestController.class))
-                    .forEach(bean -> {
-                        final var methods = Arrays.stream(bean.getClass().getDeclaredMethods())
-                                .filter(method -> method.isAnnotationPresent(GET.class) || method.isAnnotationPresent(POST.class))
-                                .toArray(Method[]::new);
-                        server.registerRoute(bean, methods);
-                    });
+                    .forEach(bean -> server.registerRoute(bean, findMethodsAnnotatedWith(bean, GET.class, POST.class)));
         }
     }
 
@@ -91,4 +83,10 @@ public class ApplicationContext {
         return classes;
     }
 
+    @SafeVarargs
+    private static Method[] findMethodsAnnotatedWith(Object bean, Class<? extends Annotation>... annotationClasses) {
+        return Arrays.stream(bean.getClass().getDeclaredMethods())
+                .filter(m -> Arrays.stream(annotationClasses).anyMatch(m::isAnnotationPresent))
+                .toArray(Method[]::new);
+    }
 }
