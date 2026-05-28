@@ -1,16 +1,22 @@
+### Check server status
 GET http://localhost:8080
 
-###
+### Get all users
 GET http://localhost:8080/user
 
-###
+### Get user by ID
 GET http://localhost:8080/user/1
 
-###
-POST  http://localhost:8080/user
+### Create a new user with JSON body
+POST http://localhost:8080/user
+Content-Type: application/json
 
-###
+{
+  "name": "Alice"
+}
+
+### Search users with query params
 GET http://localhost:8080/user?non=Existent&search=Jacob
 
-###
+### Search users with no matches
 GET http://localhost:8080/user?search=nonexistent

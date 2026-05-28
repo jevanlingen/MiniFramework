@@ -5,6 +5,7 @@ import com.di.annotations.http.GET;
 import com.di.annotations.http.POST;
 import com.di.annotations.http.PathVariable;
 import com.di.annotations.http.RequestParam;
+import com.di.annotations.http.RequestBody;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,6 +27,12 @@ import org.jspecify.annotations.Nullable;
 public class Server {
     private static final int PORT_NUMBER = 8080;
     private final List<Route> routes = new ArrayList<>();
+
+    private final JsonMapper jsonMapper;
+
+    public Server(final JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
 
     public void registerRoute(final Object bean, final Method... methods) {
         Arrays.stream(methods).forEach(method -> {
@@ -58,19 +65,46 @@ public class Server {
                     final var httpMethod = requestParts[0];
                     final var rawPath = requestParts[1];
 
-                    while (!(line = in.readLine()).isEmpty()) { }
+                    int contentLength = 0;
+                    while ((line = in.readLine()) != null && !line.isEmpty()) {
+                        if (line.toLowerCase().startsWith("content-length:")) {
+                            contentLength = Integer.parseInt(line.substring("content-length:".length()).trim());
+                        }
+                    }
+
+                    String requestBody = "";
+                    if (contentLength > 0) {
+                        char[] bodyChars = new char[contentLength];
+                        int totalRead = 0;
+                        while (totalRead < contentLength) {
+                            int read = in.read(bodyChars, totalRead, contentLength - totalRead);
+                            if (read == -1) {
+                                break;
+                            }
+                            totalRead += read;
+                        }
+                        requestBody = new String(bodyChars, 0, totalRead);
+                    }
 
                     var statusCode = 200;
                     var statusText = "OK";
                     String body;
+                    var contentType = "text/plain";
 
                     final var matched = findRoute(httpMethod, rawPath);
 
                     if (matched != null) {
                         try {
-                            final var args = convertArgs(matched.route().method(), matched.pathParams(), matched.queryParams());
+                            final var args = convertArgs(matched.route().method(), matched.pathParams(), matched.queryParams(), requestBody);
                             final var result = matched.route().method().invoke(matched.route().bean(), args);
-                            body = result != null ? result.toString() : "";
+                            if (result == null) {
+                                body = "";
+                            } else if (result instanceof String) {
+                                body = (String) result;
+                            } else {
+                                body = jsonMapper.writeValueAsString(result);
+                                contentType = "application/json";
+                            }
                         } catch (Exception e) {
                             e.printStackTrace();
                             statusCode = 500;
@@ -85,8 +119,8 @@ public class Server {
 
                     final var response =
                             "HTTP/1.1 " + statusCode + " " + statusText + "\r\n" +
-                            "Content-Type: text/plain\r\n" +
-                            "Content-Length: " + body.length() + "\r\n" +
+                            "Content-Type: " + contentType + "\r\n" +
+                            "Content-Length: " + body.getBytes().length + "\r\n" +
                             "\r\n" +
                             body;
 
@@ -138,9 +172,12 @@ public class Server {
                 .orElse(null);
     }
 
-    private @Nullable Object[] convertArgs(final Method method, final Map<String, String> pathParams, final Map<String, String> queryParams) {
+    private @Nullable Object[] convertArgs(final Method method, final Map<String, String> pathParams, final Map<String, String> queryParams, final String requestBody) {
         return Arrays.stream(method.getParameters())
                 .map(parameter -> {
+                    if (parameter.isAnnotationPresent(RequestBody.class)) {
+                        return jsonMapper.readValue(requestBody, parameter.getType());
+                    }
                     final var val = parameter.isAnnotationPresent(PathVariable.class)
                             ? pathParams.get(parameter.getAnnotation(PathVariable.class).value())
                             : parameter.isAnnotationPresent(RequestParam.class)

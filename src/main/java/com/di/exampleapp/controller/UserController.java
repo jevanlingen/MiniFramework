@@ -5,6 +5,7 @@ import com.di.annotations.http.GET;
 import com.di.annotations.http.POST;
 import com.di.annotations.http.PathVariable;
 import com.di.annotations.http.RequestParam;
+import com.di.annotations.http.RequestBody;
 import com.di.architecture.EventBus;
 import com.di.exampleapp.service.AuthenticationService;
 import com.di.exampleapp.service.UserService;
@@ -40,8 +41,8 @@ public class UserController {
     }
 
     @POST("/user")
-    public User createUser() {
-        eventBus.publish(new Create("Creating a new user"));
-        return userService.createUser("New User");
+    public User createUser(@RequestBody User newUser) {
+        eventBus.publish(new Create("Creating a new user: " + newUser.name()));
+        return userService.createUser(newUser.name());
     }
 }
